@@ -13,110 +13,95 @@ long unsigned concatenate(long unsigned x, long unsigned y)
     return x * pow + y;
 }
 
-// Return an array of values
-long unsigned *digitalSumElements(long unsigned *array, size_t arraySize)
+// Return an array of values that have a digital sum equal to the value given
+long unsigned *digitalSumElements(int inputVal)
 {
-    long unsigned *outputArray = calloc((pow(2, arraySize - 1) + 1), sizeof(long unsigned));
+    // Allocate memory space for the values that have a digital sum equal to the value given (inputVal)
+    long unsigned *outputArray = calloc(pow(2, inputVal - 1) + 1, sizeof(long unsigned));
 
-    if (arraySize == 1)
+    // If 1 is given, return 1 as the only value with such digital sum
+    if (inputVal == 1)
     {
         outputArray[0] = 1;
-        outputArray[1] = 0;
-
         return outputArray;
     }
-
-    size_t lowerArraySize = arraySize - 1;
-    size_t upperArraySize = arraySize - lowerArraySize;
-
-    long unsigned lowerArray[lowerArraySize];
-    long unsigned upperArray[upperArraySize];
-
-    for (int i = 0; i < arraySize; i++)
-    {
-        if (i < lowerArraySize)
-            lowerArray[i] = 1;
-        else
-            upperArray[i - lowerArraySize] = 1;
-    }
-
-    long unsigned *lowerArrayProcessed = digitalSumElements(lowerArray, lowerArraySize);
-    long unsigned *upperArrayProcessed = digitalSumElements(upperArray, upperArraySize);
-    long unsigned *lowerArrayElement = lowerArrayProcessed;
+    // Get an array of values that have a digital sum one less then the value given
+    long unsigned *decreasedArray = digitalSumElements(inputVal - 1);
+    long unsigned *decreasedArrayElement = decreasedArray;
     long unsigned counter = 0;
 
-    while (*lowerArrayElement != 0)
+    // Iterate through the values that have a digital sum one less then the value given
+    for (decreasedArrayElement; *decreasedArrayElement; decreasedArrayElement++)
     {
-        long unsigned *upperArrayElement = upperArrayProcessed;
+        // For each of the values: ...
 
-        while (*upperArrayElement != 0)
+        /* 
+        * ... concatenate 1 to the end of it, and store the newly formed number
+        * in an array containing numbers with digital sum equal to the value given
+        */
+        outputArray[counter] = concatenate(*decreasedArrayElement, 1);
+        counter++;
+
+        if ((*decreasedArrayElement % 10) + 1 <= 9)
         {
-            outputArray[counter] = concatenate(*lowerArrayElement, *upperArrayElement);
+            /* 
+            * ... add 1 to the value, if that's not going to cause the ten's 
+            * placeholder to change (if the number end's with 9, we don't want 
+            * to add 1, as that will cause the digital sum of the number to decrease).
+            * Store the newly formed number in an array containing numbers with digital 
+            * sum equal to the value given
+            */
+            outputArray[counter] = *decreasedArrayElement + 1;
             counter++;
-
-            if ((*lowerArrayElement % 10) + (*upperArrayElement % 10) <= 9)
-            {
-                outputArray[counter] = *lowerArrayElement + *upperArrayElement;
-                counter++;
-            }
-
-            upperArrayElement++;
         }
-
-        lowerArrayElement++;
     }
 
-    free(lowerArrayProcessed);
-    free(upperArrayProcessed);
-
-    outputArray[counter] = 0;
-
+    free(decreasedArray);
     return outputArray;
 }
 
 int main(int argc, char *argv[])
 {
-    int inputArraySize;
-    // int *inputArraySizePointer = &inputArraySize;
+    int inputVal;
 
     if (argc == 2)
     {
-        inputArraySize = atoi(argv[1]);
+        inputVal = atoi(argv[1]);
     }
     else if (argc > 2)
     {
         printf("ERROR: Too many arguments! \n");
         return 1;
     }
+    // If no arguments were passed to the script, prompt the user for the input value
     else
     {
         printf("Please input the value of n: ");
-        scanf("%d", &inputArraySize);
+        scanf("%d", &inputVal);
     }
-
-    if (inputArraySize < 1 || inputArraySize > 19)
+    // The script works for values in the range of 1 to 19 inclusive - check if
+    // the value given by user fits in that range
+    if (inputVal < 1 || inputVal > 19)
     {
         printf("ERROR: Only positive integers [1 - 19] allowed as input! \n");
         return 1;
     }
 
-    long unsigned inputArray[inputArraySize];
+    long unsigned *outputArrayPointer = digitalSumElements(inputVal);
 
-    for (int i = 0; i < inputArraySize; i++)
-    {
-        inputArray[i] = 1;
-    }
+    // create a copy of the pointer to the output array so that we can free that allocated space
+    // at the end to avoid any memory leaks.
+    long unsigned *outputArrayPointerCopy = outputArrayPointer;
 
-    long unsigned *outputArrayPointer = digitalSumElements(inputArray, inputArraySize);
     long unsigned total = 0;
 
-    while (*outputArrayPointer != 0)
-    {
+    // Sum up the values that have a digital sum equal to the input
+    for (outputArrayPointer; *outputArrayPointer; outputArrayPointer++)
         total += *outputArrayPointer;
-        outputArrayPointer++;
-    }
 
+    // Show that sum to the user
     printf("%lu \n", total);
+    free(outputArrayPointerCopy);
 
     return 0;
 }
