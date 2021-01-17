@@ -2,25 +2,24 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
-/* 
+/*
  * Define the name schemes for EXT files, LOG files and COP files.
  */
 #define EXTFILEAPPEND "_ext";
 #define LOGFILEAPPEND "_log";
-#define COPFILEAPPEND "cop";
+#define COPFILEAPPEND "_cop";
 
-/* 
- * Structure to represent a single line of the EXT file.
- */
+/*
+  * Structure to represent a single line of the EXT file.
+  */
 typedef struct
 {
     char content[1000];
     size_t next;
 } TextLine;
 
-/* 
+/*
  * Structure representing a single log.
  */
 typedef struct
@@ -31,13 +30,26 @@ typedef struct
     unsigned short current;
 } Log;
 
-/* 
+/*
+ * Prepending the file names with ./ to make the editor work for Windows (& and Linux)
+ */
+char *relativeDirPrepend(char *fileName)
+{
+    char *relFileName = calloc(strlen(fileName) + 3, sizeof(char));
+
+    relFileName = strcat(relFileName, "./");
+    relFileName = strcat(relFileName, fileName);
+    return relFileName;
+}
+
+/*
  * Get the number of lines of a file.
  */
 size_t getNoOfLines(char *fileName)
 {
+    char *relFileName = relativeDirPrepend(fileName);
     FILE *file;
-    file = fopen(fileName, "r");
+    file = fopen(relFileName, "r");
     size_t lineNo = 1;
     char c;
     char prev;
@@ -52,32 +64,42 @@ size_t getNoOfLines(char *fileName)
         prev = c;
     }
 
+    // If the character before the end was a new line character, that means the last line was empty
+    // and so it is not counted
     if (prev == '\n')
     {
         lineNo--;
     }
 
+    free(relFileName);
+
     fclose(file);
     return lineNo;
 }
 
-/* 
+/*
  * Check if a file exists.
- * 
- * Returns: 
+ *
+ * Returns:
  * 1 = File exists
  * 0 = File doesn't exist
  */
 short unsigned fileExists(char *fileName)
 {
     FILE *file;
-    // If file can be opened in read mode, it means it exists.
-    if ((file = fopen(fileName, "r")))
+
+    char *relFileName = relativeDirPrepend(fileName);
+
+    file = fopen(relFileName, "r");
+
+    if (file)
     {
+        free(relFileName);
         fclose(file);
         return 1;
     }
 
+    free(relFileName);
     return 0;
 }
 
@@ -104,11 +126,12 @@ char *getExtName(char *fileName)
     return fileExt;
 }
 
-/* 
+/*
  * Get the name of the LOG file associated with the input file.
  */
 char *getLogName(char *fileName)
 {
+
     char logFileAppend[] = LOGFILEAPPEND;
     size_t fileNameCount = 0;
 
@@ -120,25 +143,23 @@ char *getLogName(char *fileName)
     char *fileLog = calloc(fileNameCount + sizeof(logFileAppend) + 2, sizeof(char));
 
     // Append _log (indicated by LOGFILEAPPEND) to the end of the file name, and prepend it with . to make the file hidden
-    fileLog[0] = '.';
+    *fileLog = '.';
     fileLog = strcat(fileLog, fileName);
     fileLog = strcat(fileLog, logFileAppend);
 
     return fileLog;
 }
 
-/* 
- * Get an array of logs associated with the input file.
+/*
+ * Get an array of logs associated with the LOG file provided.
  */
-Log *getLogs(char *fileName)
+Log *getLogs(char *logFile)
 {
-    char *logFile = getLogName(fileName);
-
     // Allocate the memory space for the array of logs. Number of lines of the log file corresponds to the number of logs.
     Log *logs = calloc(getNoOfLines(logFile), sizeof(Log));
 
     // Calculate the number of character required to represent the greatest long unsigned number
-    size_t numLogDataMaxLength = snprintf(NULL, 0, "%lu", (size_t)pow(2, 8 * sizeof(size_t)));
+    size_t numLogDataMaxLength = snprintf(NULL, 0, "%zu", (size_t)pow(2, 8 * sizeof(size_t)));
 
     // Allocate the memory space required to represent the data regarding a log as strings
     char *operation = calloc(sizeof(logs[0].operation) + 1, sizeof(char));
@@ -151,8 +172,10 @@ Log *getLogs(char *fileName)
     size_t charCounter = 0;
     size_t noOfColumns = 4;
 
+    char *relLogFile = relativeDirPrepend(logFile);
+
     FILE *file;
-    file = fopen(logFile, "r");
+    file = fopen(relLogFile, "r");
     char c;
 
     for (c = fgetc(file); c != EOF; c = fgetc(file))
@@ -200,25 +223,23 @@ Log *getLogs(char *fileName)
 
     fclose(file);
 
+    free(relLogFile);
     free(operation);
     free(line_no);
     free(totalNoLines);
     free(current);
-    free(logFile);
 
     return logs;
 }
 
-/* 
- * Write a log to the end of the LOG file associated with the input file.
+/*
+ * Write a log to the end of the LOG file provided.
  */
-void saveToLog(char *fileName, Log log)
+void saveToLog(char *logFile, Log log)
 {
-    char *fileLog = getLogName(fileName);
-
     // Calculate the number of characters required to represent the data regarding a log as strings
-    size_t logLineNoLength = snprintf(NULL, 0, "%lu", log.line_no);
-    size_t logTotalNoLinesLength = snprintf(NULL, 0, "%lu", log.totalNoLines);
+    size_t logLineNoLength = snprintf(NULL, 0, "%zu", log.line_no);
+    size_t logTotalNoLinesLength = snprintf(NULL, 0, "%zu", log.totalNoLines);
     size_t logCurrentLength = snprintf(NULL, 0, "%u", log.current);
     size_t noOfColumns = 4;
 
@@ -229,8 +250,8 @@ void saveToLog(char *fileName, Log log)
     char *logCurrentString = calloc(logCurrentLength + 1, sizeof(char));
 
     // "Cast" the log data to strings if not string already
-    snprintf(logLineNoString, logLineNoLength + 1, "%lu", log.line_no);
-    snprintf(logTotalNoLinesString, logTotalNoLinesLength + 1, "%lu", log.totalNoLines);
+    snprintf(logLineNoString, logLineNoLength + 1, "%zu", log.line_no);
+    snprintf(logTotalNoLinesString, logTotalNoLinesLength + 1, "%zu", log.totalNoLines);
     snprintf(logCurrentString, logCurrentLength + 1, "%u", log.current);
 
     // Concatenate the log data in string format with eachother, putting | after every piece of data
@@ -244,49 +265,47 @@ void saveToLog(char *fileName, Log log)
     logEntry = strcat(logEntry, "|");
     logEntry = strcat(logEntry, "\n");
 
-    // Append the concatinated string to the LOG file associated with the input file
+    // Append the concatinated string to the LOG file
+    char *relLogFile = relativeDirPrepend(logFile);
+
     FILE *file;
-    file = fopen(fileLog, "a");
+    file = fopen(relLogFile, "a");
     fputs(logEntry, file);
     fclose(file);
 
-    free(fileLog);
+    free(relLogFile);
     free(logEntry);
     free(logLineNoString);
     free(logTotalNoLinesString);
     free(logCurrentString);
 }
 
-/* 
- * Create the LOG file associated with the input file from an array of logs.
+/*
+ * Create the LOG file from an array of logs.
  */
-void *generateLogFile(char *fileName, Log *logs)
+void generateLogFile(char *logFile, Log *logs)
 {
-    char *logFile = getLogName(fileName);
     size_t logCounter;
 
-    // Remove the LOG file associated with the input file
+    // Remove the LOG file
+    char *relLogFile = relativeDirPrepend(logFile);
     remove(logFile);
+    free(relLogFile);
 
     // Put every log in the array of logs to the LOG file
     for (logCounter = 0; logs[logCounter].operation[0]; logCounter++)
-        saveToLog(fileName, logs[logCounter]);
-
-    free(logFile);
+        saveToLog(logFile, logs[logCounter]);
 }
 
-/* 
+/*
  * Removes the logs after the CURRENT.
  */
-void flushLogs(char *fileName)
+void flushLogs(char *logFile)
 {
-    char *logFile = getLogName(fileName);
-
     // if the log file exists
     if (fileExists(logFile) == 1)
     {
-
-        Log *logs = getLogs(fileName);
+        Log *logs = getLogs(logFile);
         size_t newLogsNo = 0;
 
         // Count the number of logs before the current
@@ -298,31 +317,34 @@ void flushLogs(char *fileName)
 
         // Put all the logs up to the current in the array containing the 'new' logs
         for (logCounter = 0; logs[logCounter].current == 0; logCounter++)
-            newLogs[logCounter] = logs[logCounter];
+        {
+            strcpy(newLogs[logCounter].operation, logs[logCounter].operation);
+            newLogs[logCounter].current = logs[logCounter].current;
+            newLogs[logCounter].line_no = logs[logCounter].line_no;
+            newLogs[logCounter].totalNoLines = logs[logCounter].totalNoLines;
+        }
 
         // Put the current log in the array containing the 'new' logs
-        newLogs[logCounter] = logs[logCounter];
+        strcpy(newLogs[logCounter].operation, logs[logCounter].operation);
+        newLogs[logCounter].current = logs[logCounter].current;
+        newLogs[logCounter].line_no = logs[logCounter].line_no;
+        newLogs[logCounter].totalNoLines = logs[logCounter].totalNoLines;
 
-        generateLogFile(fileName, newLogs);
+        // Create the log using the 'new' logs
+        generateLogFile(logFile, newLogs);
 
         free(logs);
         free(newLogs);
     }
-
-    free(logFile);
 }
 
 /*
- * Append a line representation to the EXT file associated with the input file.
+ * Append a line representation to the EXT file.
  */
-void sendToExt(char *fileName, TextLine line)
+void sendToExt(char *fileExt, TextLine line)
 {
-
-    printf("%lu", line.next);
-    char *fileExt = getExtName(fileName);
-
     // Calculate the number of characters required to represent the data regarding a line as strings
-    size_t lineNextLength = snprintf(NULL, 0, "%lu", line.next);
+    size_t lineNextLength = snprintf(NULL, 0, "%zu", line.next);
     size_t noOfColumns = 2;
 
     // Allocate space in memory for the line data in string format
@@ -330,7 +352,7 @@ void sendToExt(char *fileName, TextLine line)
     char *lineNextString = calloc(lineNextLength + 1, sizeof(char));
 
     // "Cast" the line data to strings if not string already
-    snprintf(lineNextString, lineNextLength + 1, "%lu", line.next);
+    snprintf(lineNextString, lineNextLength + 1, "%zu", line.next);
 
     // Concatenate the line data in string format with eachother, putting | after every piece of data
     message = strcat(message, line.content);
@@ -339,32 +361,33 @@ void sendToExt(char *fileName, TextLine line)
     message = strcat(message, "|");
     message = strcat(message, "\n");
 
-    // Append the concatinated string to the EXT file associated with the input file
+    // Append the concatinated string to the EXT file.
+    char *relFileExt = relativeDirPrepend(fileExt);
+
     FILE *file;
-    file = fopen(fileExt, "a");
+    file = fopen(relFileExt, "a");
     fputs(message, file);
     fclose(file);
 
+    free(relFileExt);
     free(message);
-    free(fileExt);
     free(lineNextString);
 }
 
-/* 
- * Get an array of line representation associated with the input file.
+/*
+ * Get an array of line representation from the EXT file.
  */
-TextLine *getExtTextLines(char *fileName)
+TextLine *getExtTextLines(char *extFile)
 {
-    char *extFile = getExtName(fileName);
-
     // Allocate the memory space for the array of line representations.
     // Number of lines of the EXT file corresponds to the number of line representations.
     TextLine *lines = calloc(getNoOfLines(extFile), sizeof(TextLine));
 
-    // Calculate the number of character required to represent the greatest long unsigned number
-    size_t numLineDataMaxLength = snprintf(NULL, 0, "%lu", (size_t)pow(2, 8 * sizeof(size_t)));
+    // Calculate the number of characters required to represent the greatest long unsigned number
+    size_t numLineDataMaxLength = snprintf(NULL, 0, "%zu", (size_t)pow(2, 8 * sizeof(size_t)));
 
-    char *content = calloc(strlen(lines[0].content) + 1, sizeof(char));
+    // Allocate memory for the running content and next
+    char *content = calloc(sizeof(lines[0].content), sizeof(char));
     char *next = calloc(numLineDataMaxLength + 1, sizeof(char));
 
     unsigned short columnFlag = 0;
@@ -372,20 +395,22 @@ TextLine *getExtTextLines(char *fileName)
     size_t charCounter = 0;
 
     FILE *file;
-    file = fopen(extFile, "r");
+    char *relExtFile = relativeDirPrepend(extFile);
+    file = fopen(relExtFile, "r");
     char c;
 
+    // For every character in the file
     for (c = fgetc(file); c != EOF; c = fgetc(file))
     {
         if (c == '|')
         {
-            // switch the column when | is seen in the file
+            // Switch the column when | is seen in the file
             columnFlag = 1 - columnFlag;
             charCounter = 0;
         }
         else if (c == '\n')
         {
-            // put the line representation in the array of line representations
+            // Put the line representation in the array of line representations
             // when the new line character is seen in the file
             strcpy(lines[lineCounter].content, content);
             lines[lineCounter].next = atoi(next);
@@ -393,12 +418,14 @@ TextLine *getExtTextLines(char *fileName)
         }
         else if (columnFlag == 0)
         {
+            // If it's the 'content' column, put the seen characters in the running 'content'
             content[charCounter] = c;
             content[charCounter + 1] = '\0';
             charCounter++;
         }
         else if (columnFlag == 1)
         {
+            // If it's the 'next' column, put the seen characters in the running 'next'
             next[charCounter] = c;
             next[charCounter + 1] = '\0';
             charCounter++;
@@ -407,17 +434,17 @@ TextLine *getExtTextLines(char *fileName)
 
     fclose(file);
 
+    free(relExtFile);
     free(content);
     free(next);
-    free(extFile);
 
     return lines;
 }
 
-/* 
+/*
  * Given the line number of a line, get the index of it's representation in the array of line representation.
  */
-long getTextLineIndex(TextLine *lines, size_t line_no)
+size_t getTextLineIndex(TextLine *lines, size_t line_no)
 {
     TextLine current = lines[0];
     size_t traverseCounter;
@@ -440,18 +467,18 @@ long getTextLineIndex(TextLine *lines, size_t line_no)
     return -1;
 }
 
-/* 
+/*
  * Get the length the document would have if the EXT file would be compiled without compiling it.
  */
-size_t getCurrentDocumentLength(char *fileName)
+size_t getCurrentDocumentLength(char *extFile)
 {
-    TextLine *lines = getExtTextLines(fileName);
+    TextLine *lines = getExtTextLines(extFile);
     TextLine current = lines[0];
     size_t traverseCounter;
     size_t nextIndex = 0;
 
     // Traverse through the line representations, until the current line points to 0 (interpreted as NULL),
-    // keeping track of how many lines have visited.
+    // keeping track of how many lines have been visited.
     for (traverseCounter = 0; current.next != 0; traverseCounter++)
     {
         nextIndex = current.next;
@@ -464,53 +491,51 @@ size_t getCurrentDocumentLength(char *fileName)
 }
 
 /*
- * Create the EXT file associated with the input file from an array of line representations.
+ * Create the EXT file from an array of line representations.
  */
-void *generateExtFile(char *fileName, TextLine *lines)
+void generateExtFile(char *extFile, TextLine *lines)
 {
-    char *extFile = getExtName(fileName);
     size_t lineCounter;
 
-    // // Remove the EXT file associated with the input file
-    remove(extFile);
+    // Remove the EXT file.
+    char *relExtFile = relativeDirPrepend(extFile);
+    remove(relExtFile);
 
-    // // Put every line representation in the array of line representations to the EXT file
+    // Put every line representation in the array of line representations to the EXT file.
     for (lineCounter = 0; lines[lineCounter].content[0] != 0; lineCounter++)
-        sendToExt(fileName, lines[lineCounter]);
+        sendToExt(extFile, lines[lineCounter]);
 
-    free(extFile);
+    free(relExtFile);
 }
 
 /*
- * Append a log to the end of logs associated with the input file.
+ * Append a log to the end of logs, and generate the LOG file provided
  */
-void *appendToLog(char *fileName, Log log)
+void appendToLog(char *logFile, Log log)
 {
-    char *fileLog = getLogName(fileName);
-
     // Remove all the logs after the CURRENT
-    flushLogs(fileName);
+    flushLogs(logFile);
 
     // If the LOG file doesn't exist, create it.
-    if (fileExists(fileLog) == 0)
+    if (fileExists(logFile) == 0)
     {
+        char *relLogFile = relativeDirPrepend(logFile);
         FILE *file;
-        file = fopen(fileLog, "w");
+        file = fopen(relLogFile, "w");
         fclose(file);
+        free(relLogFile);
     }
 
-    free(fileLog);
-
-    Log *logs = getLogs(fileName);
+    Log *logs = getLogs(logFile);
     size_t logsCounter = 0;
 
-    // Count how many logs associated with the input file there are.
-    while (logs[logsCounter].operation[0])
+    // Count how many logs there are.
+    while (logs[logsCounter].operation[0] != 0)
         logsCounter++;
 
     // Allocate the memory space required to store the logs already present + one
     // more log that we will be added in one moment.
-    Log *logsCopy = calloc(logsCounter + 1, sizeof(Log));
+    Log *logsCopy = calloc(logsCounter + 2, sizeof(Log));
 
     // Copy the logs already present, setting all the currents to 0 (the new log
     // that will be added next is the new current).
@@ -529,13 +554,13 @@ void *appendToLog(char *fileName, Log log)
     logsCopy[logsCounter].current = log.current;
 
     // Generate the lOG file using the new array of logs.
-    generateLogFile(fileName, logsCopy);
+    generateLogFile(logFile, logsCopy);
 
     free(logs);
     free(logsCopy);
 }
 
-/* 
+/*
  * Get a line indicated by line_no from the input file.
  */
 char *getLine(char *fileName, size_t line_no)
@@ -547,10 +572,11 @@ char *getLine(char *fileName, size_t line_no)
 
     // Allocate memory space for the output string
     char *output = calloc(1000, sizeof(char));
-    int lineCounter = 1;
+    size_t lineCounter = 1;
 
+    char *relFileName = relativeDirPrepend(fileName);
     FILE *file;
-    file = fopen(fileName, "r");
+    file = fopen(relFileName, "r");
     char c;
 
     // Traverse through the characters in the input file, taking count of the number of new line
@@ -567,18 +593,19 @@ char *getLine(char *fileName, size_t line_no)
     for (c; c != '\n' && c != EOF; c = fgetc(file))
         output = strncat(output, &c, 1);
 
+    free(relFileName);
     return output;
 }
 
-/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                           *
  *                          Line-level Controlers                            *
  *                                                                           *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-/* 
- * Controller for displaying a line.
- */
+/*
+  * Controller for displaying a line.
+  */
 void lineShowController(char *fileName, size_t line_no, char *flag)
 {
     size_t noOfLines = getNoOfLines(fileName);
@@ -605,36 +632,36 @@ void lineShowController(char *fileName, size_t line_no, char *flag)
     else
     {
         /*
-         * If the r flag wasn't provided and the EXT file for the input file does exist - 
+         * If the r flag wasn't provided and the EXT file for the input file does exist -
          * display the line from the array of line representations corresponding to
          * the line number given (it displays the line that running the show line controller
          * with the r flag would display after compiling the EXT file first).
          */
 
-        free(extFile);
-
-        if (line_no > getCurrentDocumentLength(fileName) || line_no < 1)
+        if (line_no > getCurrentDocumentLength(extFile) || line_no < 1)
         {
             printf("ERROR | Line number outside of the allowed range!\n");
             exit(1);
         }
 
-        TextLine *lines = getExtTextLines(fileName);
-        int lineIndex = getTextLineIndex(lines, line_no);
+        TextLine *lines = getExtTextLines(extFile);
+        size_t lineIndex = getTextLineIndex(lines, line_no);
 
         char *line = lines[lineIndex].content;
         printf("%s\n", line);
 
         free(lines);
+        free(extFile);
     }
 }
 
-/* 
+/*
  * Controller for inserting a line.
  */
 void lineInsertController(char *fileName, size_t line_no, char *content)
 {
     char *extFile = getExtName(fileName);
+    char *logFile = getLogName(fileName);
 
     // If the EXT file associated with the input file doesn't exist, a line cannot be inserted
     // and so an adequate message is displayed.
@@ -651,11 +678,9 @@ void lineInsertController(char *fileName, size_t line_no, char *content)
         exit(1);
     }
 
-    free(extFile);
-
     // If the line number provided exceeds the length of the document + 1 or is less than 1,
     // display a suitable error message.
-    if (line_no > getCurrentDocumentLength(fileName) + 1 || line_no < 1)
+    if (line_no > getCurrentDocumentLength(extFile) + 1 || line_no < 1)
     {
         printf("ERROR | Line number outside of the allowed range!\n");
         exit(2);
@@ -669,7 +694,7 @@ void lineInsertController(char *fileName, size_t line_no, char *content)
         exit(3);
     }
 
-    TextLine *lines = getExtTextLines(fileName);
+    TextLine *lines = getExtTextLines(extFile);
     size_t linesCounter = 0;
     TextLine preLine;
 
@@ -679,7 +704,7 @@ void lineInsertController(char *fileName, size_t line_no, char *content)
 
     // The index of the line repressentation that is associated with the line number one less than
     // the line number provided is retrived
-    int preLineIndex = getTextLineIndex(lines, line_no - 1);
+    size_t preLineIndex = getTextLineIndex(lines, line_no - 1);
 
     // Allocate the memory space required to store the lines already present + one
     // more line that we will be added in one moment.
@@ -701,22 +726,25 @@ void lineInsertController(char *fileName, size_t line_no, char *content)
     linesCopy[preLineIndex].next = linesCounter;
 
     // Generate the EXT file using the new array of line representations.
-    generateExtFile(fileName, linesCopy);
+    generateExtFile(extFile, linesCopy);
 
     // Send a suitable message to the LOG file associated with the input file.
-    Log log = {"LINE_INSERTED", linesCounter, getCurrentDocumentLength(fileName), 1};
-    appendToLog(fileName, log);
+    Log log = {"LINE_INSERTED", linesCounter, getCurrentDocumentLength(extFile), 1};
+    appendToLog(logFile, log);
 
     free(lines);
     free(linesCopy);
+    free(extFile);
+    free(logFile);
 }
 
-/* 
+/*
  * Contoller for deleting a line.
  */
-void lineDeleteController(char *fileName, int line_no)
+void lineDeleteController(char *fileName, size_t line_no)
 {
     char *extFile = getExtName(fileName);
+    char *logFile = getExtName(fileName);
 
     // If the EXT file associated with the input file doesn't exist, a line cannot be deleted
     // and so an adequate message is displayed.
@@ -726,65 +754,69 @@ void lineDeleteController(char *fileName, int line_no)
         exit(1);
     }
 
-    free(extFile);
-
     // If the line number provided exceeds the length of the document or is less than 1,
     // display a suitable error message.
-    if (line_no > getCurrentDocumentLength(fileName) || line_no < 1)
+    if (line_no > getCurrentDocumentLength(extFile) || line_no < 1)
     {
         printf("ERROR | Line number outside of the allowed range!\n");
         exit(1);
     }
 
-    TextLine *lines = getExtTextLines(fileName);
+    TextLine *lines = getExtTextLines(extFile);
 
     // Set the line before the line to be deleted to point to the line the line to be deleted points to.
     // This way, when we follow the pointers, we skip the deleted line (without removing it completely).
-    int preLineIndex = getTextLineIndex(lines, line_no - 1);
-    int lineIndex = getTextLineIndex(lines, line_no);
+    size_t preLineIndex = getTextLineIndex(lines, line_no - 1);
+    size_t lineIndex = getTextLineIndex(lines, line_no);
     lines[preLineIndex].next = lines[lineIndex].next;
 
     // Generate the EXT file using the updated array of line representations.
-    generateExtFile(fileName, lines);
+    generateExtFile(extFile, lines);
 
     // Send a suitable message to the LOG file associated with the input file.
-    Log log = {"LINE_DELETED", lineIndex, getCurrentDocumentLength(fileName), 1};
-    appendToLog(fileName, log);
+    Log log = {"LINE_DELETED", lineIndex, getCurrentDocumentLength(extFile), 1};
+    appendToLog(logFile, log);
 
+    free(logFile);
+    free(extFile);
     free(lines);
 }
 
-/* 
+/*
  * Controller for appending a line.
  */
 void lineAppendController(char *fileName, char *content)
 {
     // Insert a line after the last line.
-    size_t noOfLines = getCurrentDocumentLength(fileName);
+    char *extFile = getExtName(fileName);
+    size_t noOfLines = getCurrentDocumentLength(extFile);
     lineInsertController(fileName, noOfLines + 1, content);
+    free(extFile);
 }
 
-/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                           *
  *                          File-level Controlers                            *
  *                                                                           *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-/* 
- * Compile the EXT file associated with the input file.
- */
+/*
+  * Compile the EXT file associated with the input file.
+  */
 void compileExt(char *fileName)
 {
-    TextLine *lines = getExtTextLines(fileName);
-    size_t noOfLines = getCurrentDocumentLength(fileName);
+    char *extFile = getExtName(fileName);
+    TextLine *lines = getExtTextLines(extFile);
+    size_t noOfLines = getCurrentDocumentLength(extFile);
     size_t lineCounter;
-    int lineIndex;
+    size_t lineIndex;
 
     // Remove the input file
-    remove(fileName);
+    char *relFileName = relativeDirPrepend(fileName);
+    remove(relFileName);
 
     FILE *file;
-    file = fopen(fileName, "a");
+    file = fopen(relFileName, "a");
 
     // Traverse through the lines in the EXT file associated with the input file
     for (lineCounter = 0; lineCounter < noOfLines; lineCounter++)
@@ -803,6 +835,8 @@ void compileExt(char *fileName)
 
     fclose(file);
     free(lines);
+    free(extFile);
+    free(relFileName);
 }
 
 /*
@@ -818,35 +852,45 @@ void fileCreateController(char *fileName, char *flag)
         exit(1);
     }
 
-    char *fileExt = getExtName(fileName);
-    char *fileLog = getLogName(fileName);
+    char *extFile = getExtName(fileName);
+    char *logFile = getLogName(fileName);
+
+    char *relFileName = relativeDirPrepend(fileName);
+    char *relExtFile = relativeDirPrepend(extFile);
+    char *relLogFile = relativeDirPrepend(logFile);
+
+    remove(relExtFile);
+    remove(relLogFile);
+    remove(relFileName);
 
     FILE *file;
 
     // Create the input file
-    file = fopen(fileName, "w");
+    file = fopen(relFileName, "w");
     fclose(file);
 
-    if (*flag != 'q')
-    {
-        // Unless the q (quiet) flag had been provided (used e.g. when undoing a file deletion)
-        // create the EXT and LOG files associated with the file, sending a suitable log.
-        file = fopen(fileLog, "w");
-        fclose(file);
+    free(relFileName);
 
-        file = fopen(fileExt, "w");
-        fclose(file);
+    // Create the EXT and LOG files associated with the file, sending a suitable log.
+    file = fopen(relLogFile, "w");
+    fclose(file);
 
-        TextLine line = {"BEGIN", 0};
-        Log logBegin = {"BEGIN", 0, 0, 0};
-        Log log = {"FILE_CREATED", 0, 0, 1};
+    file = fopen(relExtFile, "w");
+    fclose(file);
 
-        sendToExt(fileName, line);
-        appendToLog(fileName, logBegin);
-        appendToLog(fileName, log);
-    }
-    free(fileExt);
-    free(fileLog);
+    TextLine line = {"BEGIN", 0};
+    Log logBegin = {"BEGIN", 0, 0, 0};
+    Log log = {"FILE_CREATED", 0, 0, 1};
+
+    free(relExtFile);
+    free(relLogFile);
+
+    sendToExt(extFile, line);
+    appendToLog(logFile, logBegin);
+    appendToLog(logFile, log);
+
+    free(extFile);
+    free(logFile);
 }
 
 /*
@@ -858,20 +902,20 @@ void fileCopyController(char *src, char *dest, char *flag)
     fileCreateController(dest, flag);
     size_t noLines;
     size_t line_no;
-    char *fileExt = getExtName(src);
+    char *extFile = getExtName(src);
 
-    if (fileExists(fileExt) == 1)
+    if (fileExists(extFile) == 1)
     {
-        //     /*
-        //      * If the source file has an EXT file associated with it,
-        //      * append lines to the destination file according to the EXT file
-        //      * of the source file (this is so that uncompiled files can be copied
-        //      * and the destination file can have the uncompiled lines that the source file had,
-        //      * except the lines that were deleted - a desired behaviour !).
-        //      */
+        /*
+         * If the source file has an EXT file associated with it,
+         * append lines to the destination file according to the EXT file
+         * of the source file (this is so that uncompiled files can be copied
+         * and the destination file can have the uncompiled lines that the source file had,
+         * except the lines that were deleted - a desired behaviour !).
+         */
 
-        noLines = getCurrentDocumentLength(src);
-        TextLine *srcLines = getExtTextLines(src);
+        noLines = getCurrentDocumentLength(extFile);
+        TextLine *srcLines = getExtTextLines(extFile);
         size_t textLineIndex;
 
         for (line_no = 1; line_no <= noLines; line_no++)
@@ -899,7 +943,7 @@ void fileCopyController(char *src, char *dest, char *flag)
         }
     }
 
-    free(fileExt);
+    free(extFile);
 }
 
 /*
@@ -907,8 +951,10 @@ void fileCopyController(char *src, char *dest, char *flag)
  */
 void fileDeleteController(char *fileName, char *flag)
 {
+
     // If the input file doesn't exist, unless an a (delete all) flag has been provided
     // output a suitable error message.
+
     if (fileExists(fileName) == 0 && *flag != 'a')
     {
         printf("ERROR | File %s doesn't exist!\n", fileName);
@@ -920,17 +966,23 @@ void fileDeleteController(char *fileName, char *flag)
 
     if (fileExists(fileName) == 1)
     {
-        // If the input file exists, it is deleted and a suitable message is displayed.
-        printf("Deleting file %s!\n", fileName);
-        remove(fileName);
+        // If the input file exists, it is deleted and a
+        // suitable message is displayed (unless the q (quiet) or x flag is provided).
+        if (*flag != 'q' && *flag != 'x')
+            printf("Deleting file %s!\n", fileName);
+
+        char *relFileName = relativeDirPrepend(fileName);
+        remove(relFileName);
+        free(relFileName);
     }
 
-    if (fileExists(logFile) == 1 && *flag != 'q')
+    if (fileExists(logFile) == 1 && *flag != 'q' && *flag != 'a' && *flag != 'x')
     {
         // If the LOG file associated with the input file exists, and the q (quiet) flag
-        // has not been provided, a log is sent to the logs associated with the input file.
+        // or the a (all) flag or the x flag has not been provided, a log is sent to the
+        // logs associated with the input file.
         Log log = {"FILE_DELETED", 0, 0, 1};
-        appendToLog(fileName, log);
+        appendToLog(logFile, log);
     }
 
     if (*flag == 'a' || *flag == 'x')
@@ -962,8 +1014,12 @@ void fileDeleteController(char *fileName, char *flag)
         {
             // If the user has positively confirmed their choice, the EXT and LOG files
             // associated with the input file are deleted.
-            remove(extFile);
-            remove(logFile);
+            char *relExtFile = relativeDirPrepend(extFile);
+            char *relLogFile = relativeDirPrepend(logFile);
+            remove(relExtFile);
+            remove(relLogFile);
+            free(relExtFile);
+            free(relLogFile);
         }
         else
         {
@@ -983,14 +1039,16 @@ void fileDeleteController(char *fileName, char *flag)
 void fileShowController(char *fileName)
 {
     // TODO: show the file in EXT
+    char *relFileName = relativeDirPrepend(fileName);
     FILE *file;
-    file = fopen(fileName, "r");
+    file = fopen(relFileName, "r");
     char c;
 
     for (c = fgetc(file); c != EOF; c = fgetc(file))
         printf("%c", c);
 
     fclose(file);
+    free(relFileName);
 }
 
 /*
@@ -999,6 +1057,7 @@ void fileShowController(char *fileName)
 void showLogs(char *fileName)
 {
     char *logFile = getLogName(fileName);
+    char *extFile = getExtName(fileName);
 
     // If the LOG file associated with the input file doesn't exist,
     // a suitable error message is displayed.
@@ -1008,16 +1067,14 @@ void showLogs(char *fileName)
         exit(1);
     }
 
-    free(logFile);
-
-    Log *logs = getLogs(fileName);
+    Log *logs = getLogs(logFile);
     size_t logsCounter;
-    TextLine *lines = getExtTextLines(fileName);
+    TextLine *lines = getExtTextLines(extFile);
 
     // Format the print the logs
-    for (size_t logsCounter = 0; logs[logsCounter].operation[0]; logsCounter++)
+    for (logsCounter = 0; logs[logsCounter].operation[0]; logsCounter++)
     {
-        printf("Operation: %s - Number of Lines: %lu", logs[logsCounter].operation, logs[logsCounter].totalNoLines);
+        printf("Operation: %s - Number of Lines: %zu", logs[logsCounter].operation, logs[logsCounter].totalNoLines);
 
         // Print the line the log points to
         if (logs[logsCounter].line_no)
@@ -1028,6 +1085,9 @@ void showLogs(char *fileName)
 
         printf("\n");
     }
+
+    free(logFile);
+    free(extFile);
 }
 
 /*
@@ -1056,35 +1116,42 @@ void showLength(char *fileName, char *flag)
         // If the r (real) flag has not been provided and the EXT file associated with
         // the input file does exist, print the number of lines the file would have if
         // it would be compiled.
-        length = getCurrentDocumentLength(fileName);
+        length = getCurrentDocumentLength(extFile);
     }
 
     free(extFile);
 
-    printf("The file %s has %lu lines.\n", fileName, length);
+    printf("The file %s has %zu lines.\n", fileName, length);
 }
 
 /*
- * Generate the EXT and LOG files for a file which doesn't have them - required for operations 
+ * Generate the EXT and LOG files for a file which doesn't have them - required for operations
  * like inserting a line or deleting a line.
  */
-void buildExtLog(char *fileName) // test this
+void buildExtLog(char *fileName)
 {
-    char *fileNameCopy = calloc(strlen(fileName) + 1, sizeof(char));
-    strcpy(fileNameCopy, fileName);
+    // Append the appendix for the copied files to the file name, to create a file name for the copied file
     char fileCopyAppendix[] = COPFILEAPPEND;
-
-    char *fileCopy = calloc(strlen(fileNameCopy) + strlen(fileCopyAppendix) + 1, sizeof(char));
-    fileCopy = strcat(fileCopy, fileNameCopy);
+    char *fileCopy = calloc(strlen(fileName) + strlen(fileCopyAppendix) + 1, sizeof(char));
+    fileCopy = strcat(fileCopy, fileName);
     fileCopy = strcat(fileCopy, fileCopyAppendix);
 
-    fileCopyController(fileNameCopy, fileCopy, "o");
-    fileCopyController(fileCopy, fileNameCopy, "o");
-    // fileDeleteController(fileCopy, "x");
-    compileExt(fileNameCopy);
+    // Copy the input file. After this, the copy of the file will have the EXT and LOG files
+    // 'populated' accordingly to the contents to the input file
+    fileCopyController(fileName, fileCopy, "\0");
+
+    // Copy the copied file to a new file with the same name as the input file, providing the overwrite
+    // flag to overwite the input file
+    fileCopyController(fileCopy, fileName, "o");
+
+    // Deleted the file copy, providing the x flag, so that it's EXT and LOG files will be deleted witout asking
+    // the user
+    fileDeleteController(fileCopy, "x");
+
+    // Compile the EXT file for the input file
+    compileExt(fileName);
 
     free(fileCopy);
-    free(fileNameCopy);
 }
 
 /*
@@ -1093,57 +1160,86 @@ void buildExtLog(char *fileName) // test this
 void undoController(char *fileName)
 {
     char *logFile = getLogName(fileName);
+    char *extFile = getExtName(fileName);
+
+    // If the log file associated with the input file doesn't exist, undo cannot be applied, and so
+    // a suitable error message is dispayed on the screen.
     if (fileExists(logFile) == 0)
     {
         printf("ERROR | The log file for file %s doesn't exist!\n", fileName);
         exit(1);
     }
 
-    free(logFile);
-
-    Log *logs = getLogs(fileName);
+    TextLine *lines = getExtTextLines(extFile);
+    Log *logs = getLogs(logFile);
     size_t current = 0;
-    TextLine *lines = getExtTextLines(fileName);
 
+    // Get the index of the current log
     while (logs[current].current == 0)
         current++;
 
+    // If the current log isn't the header log (BEGIN)
     if (current != 0)
     {
+        // Set the log before the current log to current (and the current log to not current)
         logs[current - 1].current = 1;
-
         logs[current].current = 0;
+
         if (strcmp(logs[current].operation, "LINE_INSERTED") == 0)
         {
+            // If the operation of the (previous) current log is LINE_INSERTED
+
             size_t extLineCounter = 0;
+
+            // Get the index of the line representation before the line inserted
             while (lines[extLineCounter].next != logs[current].line_no)
                 extLineCounter++;
 
+            // Set the 'next' of the line representation before the line inserted to point
+            // to the line that the line representation of the line inserted points to
             lines[extLineCounter].next = lines[logs[current].line_no].next;
         }
         else if (strcmp(logs[current].operation, "LINE_DELETED") == 0)
         {
-            size_t extLineCounter = 0;
-            while (lines[extLineCounter].next != lines[logs[current].line_no].next)
-                extLineCounter++;
+            // If the operation of the (previous) current log is LINE_DELETED
 
+            size_t extLineCounter;
+
+            // Get the index of the line representation that has the same 'next' as 'next' of the
+            // line representation of the deleted line, but isn't the deleted line
+            for (size_t extLineCounter = 0;
+                 lines[extLineCounter].next != lines[logs[current].line_no].next && extLineCounter != logs[current].line_no;
+                 extLineCounter++)
+            {
+            };
+
+            // Set the 'next' of the found line representation to the index of the deleted line
             lines[extLineCounter].next = logs[current].line_no;
         }
         else if (strcmp(logs[current].operation, "FILE_CREATED") == 0)
         {
+            // If the operation of the (previous) current log is FILE_CREATED
+
+            // Delete the file, providing the q (quiet) flag, so that no message will be sent to the logs
             fileDeleteController(fileName, "q");
         }
         else if (strcmp(logs[current].operation, "FILE_DELETED") == 0)
         {
+            // If the operation of the (previous) current log is FILE_DELETED
+
+            // Compile the EXT file associated with the input file
             compileExt(fileName);
         }
 
-        generateExtFile(fileName, lines);
+        // Generate the EXT file with the updated line representations and the LOG file with the updated CURRENT
+        generateExtFile(extFile, lines);
+        generateLogFile(logFile, logs);
     }
-    generateLogFile(fileName, logs);
 
     free(logs);
     free(lines);
+    free(logFile);
+    free(extFile);
 }
 
 /*
@@ -1152,53 +1248,84 @@ void undoController(char *fileName)
 void redoController(char *fileName)
 {
     char *logFile = getLogName(fileName);
+    char *extFile = getExtName(fileName);
+
+    // If the log file associated with the input file doesn't exist, redo cannot be applied, and so
+    // a suitable error message is dispayed on the screen.
     if (fileExists(logFile) == 0)
     {
         printf("ERROR | The log file for file %s doesn't exist!\n", fileName);
         exit(1);
     }
 
-    Log *logs = getLogs(fileName);
+    TextLine *lines = getExtTextLines(extFile);
+    Log *logs = getLogs(logFile);
     size_t current = 0;
-    TextLine *lines = getExtTextLines(fileName);
 
+    // Get the index of the current log
     while (logs[current].current == 0)
         current++;
 
+    // If the CURRENT isn't already at the end of logs
     if (current < getNoOfLines(logFile) - 1)
     {
+        // Set the log after the current log to current (and the current log to not current)
         logs[current + 1].current = 1;
         logs[current].current = 0;
 
         if (strcmp(logs[current + 1].operation, "LINE_INSERTED") == 0)
         {
-            size_t extLineCounter = 0;
-            while (lines[extLineCounter].next != lines[logs[current + 1].line_no].next)
-                extLineCounter++;
+            // If the operation of the (new) current log is LINE_INSERTED
 
+            size_t extLineCounter;
+
+            // Get the index of the line representation that has the same 'next' as 'next' of the
+            // line representation of the inserted line, but isn't the inserted line
+            for (extLineCounter = 0;
+                 lines[extLineCounter].next != lines[logs[current + 1].line_no].next && extLineCounter != logs[current + 1].line_no;
+                 extLineCounter++)
+            {
+            }
+
+            // Set the 'next' of the found line representation to the index of the inserted line
             lines[extLineCounter].next = logs[current + 1].line_no;
         }
         else if (strcmp(logs[current + 1].operation, "LINE_DELETED") == 0)
         {
+            // If the operation of the (new) current log is LINE_DELETED
+
             size_t extLineCounter = 0;
+
+            // Get the index of the line representation before the line deleted
+            // (the deletion was undone, but I'm reffering to is as 'deleted' line)
             while (lines[extLineCounter].next != logs[current + 1].line_no)
                 extLineCounter++;
 
+            // Set the 'next' of the line representation before the line deleted to point
+            // to the line that the line representation of the line deleted points to
             lines[extLineCounter].next = lines[logs[current + 1].line_no].next;
         }
         else if (strcmp(logs[current + 1].operation, "FILE_CREATED") == 0)
         {
-            fileCreateController(fileName, "q");
+            // If the operation of the (new) current log is FILE_CREATED
+
+            // Compile the EXT file associated with the input file
+            compileExt(fileName);
         }
         else if (strcmp(logs[current + 1].operation, "FILE_DELETED") == 0)
         {
-            fileDeleteController(fileName, "\0");
+            // If the operation of the (new) current log is FILE_DELETED
+
+            // Delete the file, providing the q (quiet) flag, so that no message will be sent to the logs
+            fileDeleteController(fileName, "q");
         }
-        generateExtFile(fileName, lines);
+
+        // Generate the EXT file with the updated line representations and the LOG file with the updated CURRENT
+        generateExtFile(extFile, lines);
+        generateLogFile(logFile, logs);
     }
 
-    generateLogFile(fileName, logs);
-
+    free(extFile);
     free(logFile);
     free(logs);
     free(lines);
@@ -1244,10 +1371,9 @@ int main(int argc, char *argv[])
     if (argc <= 1)
         return 1;
 
-    int messageReturned;
-
     switch (*argv[1])
     {
+    // Option selection (depending on the users input)
     case 'c':
     case 'C':
 
@@ -1256,195 +1382,159 @@ int main(int argc, char *argv[])
         else if (argc > 3)
             fileCreateController(argv[2], argv[3]);
         else
-            fileCreateController("./default.txt", "\0");
+            fileCreateController("default", "\0");
 
         break;
 
     case 'p':
     case 'P':
-        if (argc < 3)
-        {
-            printf("ERROR || Incorrect number of arguments\n");
-            break;
-        }
 
-        if (argc == 4)
+        if (argc < 3)
+            printf("ERROR || Incorrect number of arguments\n");
+        else if (argc == 4)
             fileCopyController(argv[2], argv[3], "\0");
         else if (argc > 4)
             fileCopyController(argv[2], argv[3], argv[4]);
         else
-            fileCopyController(argv[2], "./default.txt", "\0");
+            fileCopyController(argv[2], "default", "\0");
 
         break;
 
     case 'd':
     case 'D':
-        if (argc < 3)
-        {
-            printf("ERROR || Incorrect number of arguments\n");
-            break;
-        }
-        else if (argc > 3)
-        {
-            fileDeleteController(argv[2], argv[3]);
-            break;
-        }
 
-        fileDeleteController(argv[2], "\0");
+        if (argc < 3)
+            printf("ERROR || Incorrect number of arguments\n");
+        else if (argc > 3)
+            fileDeleteController(argv[2], argv[3]);
+        else
+            fileDeleteController(argv[2], "\0");
 
         break;
 
     case 's':
     case 'S':
-        if (argc < 3)
-        {
-            printf("ERROR || Incorrect number of arguments\n");
-            break;
-        }
 
-        fileShowController(argv[2]);
+        if (argc < 3)
+            printf("ERROR || Incorrect number of arguments\n");
+        else
+            fileShowController(argv[2]);
 
         break;
 
     case 'q':
     case 'Q':
-        if (argc < 4)
-        {
-            printf("ERROR || Incorrect number of arguments\n");
-            break;
-        }
-        else if (argc > 4)
-        {
-            lineShowController(argv[2], atoi(argv[3]), argv[4]);
-            break;
-        }
 
-        lineShowController(argv[2], atoi(argv[3]), "\0");
+        if (argc < 4)
+            printf("ERROR || Incorrect number of arguments\n");
+        else if (argc > 4)
+            lineShowController(argv[2], atoi(argv[3]), argv[4]);
+        else
+            lineShowController(argv[2], atoi(argv[3]), "\0");
 
         break;
 
     case 'i':
     case 'I':
-        if (argc < 5)
-        {
-            printf("ERROR || Incorrect number of arguments\n");
-            break;
-        }
 
-        lineInsertController(argv[2], atoi(argv[3]), argv[4]);
+        if (argc < 5)
+            printf("ERROR || Incorrect number of arguments\n");
+        else
+            lineInsertController(argv[2], atoi(argv[3]), argv[4]);
 
         break;
 
     case 'x':
     case 'X':
-        if (argc < 4)
-        {
-            printf("ERROR || Incorrect number of arguments\n");
-            break;
-        }
 
-        lineDeleteController(argv[2], atoi(argv[3]));
+        if (argc < 4)
+            printf("ERROR || Incorrect number of arguments\n");
+        else
+            lineDeleteController(argv[2], atoi(argv[3]));
 
         break;
 
     case 'a':
     case 'A':
-        if (argc < 4)
-        {
-            printf("ERROR || Incorrect number of arguments\n");
-            break;
-        }
 
-        lineAppendController(argv[2], argv[3]);
+        if (argc < 4)
+            printf("ERROR || Incorrect number of arguments\n");
+        else
+            lineAppendController(argv[2], argv[3]);
 
         break;
 
     case 'm':
     case 'M':
-        if (argc < 3)
-        {
-            printf("ERROR || Incorrect number of arguments\n");
-            break;
-        }
 
-        compileExt(argv[2]);
+        if (argc < 3)
+            printf("ERROR || Incorrect number of arguments\n");
+        else
+            compileExt(argv[2]);
 
         break;
 
     case 'l':
     case 'L':
-        if (argc < 3)
-        {
-            printf("ERROR || Incorrect number of arguments\n");
-            break;
-        }
 
-        showLogs(argv[2]);
+        if (argc < 3)
+            printf("ERROR || Incorrect number of arguments\n");
+        else
+            showLogs(argv[2]);
 
         break;
 
     case 'n':
     case 'N':
-        if (argc < 3)
-        {
-            printf("ERROR || Incorrect number of arguments\n");
-            break;
-        }
-        else if (argc > 3)
-        {
-            showLength(argv[2], argv[3]);
-            break;
-        }
 
-        showLength(argv[2], "\0");
+        if (argc < 3)
+            printf("ERROR || Incorrect number of arguments\n");
+        else if (argc > 3)
+            showLength(argv[2], argv[3]);
+        else
+            showLength(argv[2], "\0");
 
         break;
 
     case 'b':
     case 'B':
-        if (argc < 3)
-        {
-            printf("ERROR || Incorrect number of arguments\n");
-            break;
-        }
 
-        buildExtLog(argv[2]);
+        if (argc < 3)
+            printf("ERROR || Incorrect number of arguments\n");
+        else
+            buildExtLog(argv[2]);
 
         break;
 
     case 'u':
     case 'U':
-        if (argc < 3)
-        {
-            printf("ERROR || Incorrect number of arguments\n");
-            break;
-        }
 
-        undoController(argv[2]);
+        if (argc < 3)
+            printf("ERROR || Incorrect number of arguments\n");
+        else
+            undoController(argv[2]);
 
         break;
 
     case 'r':
     case 'R':
-        if (argc < 3)
-        {
-            printf("ERROR || Incorrect number of arguments\n");
-            break;
-        }
 
-        redoController(argv[2]);
+        if (argc < 3)
+            printf("ERROR || Incorrect number of arguments\n");
+        else
+            redoController(argv[2]);
 
         break;
 
     case 'h':
     case 'H':
-        showHelp();
 
+        showHelp();
         break;
 
     default:
-        printf("%c", *argv[1]);
 
+        printf("ERROR || Invalid option selected\n");
         break;
     }
 
