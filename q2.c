@@ -15,7 +15,7 @@
   */
 typedef struct
 {
-    char content[1000];
+    char content[1001];
     size_t next;
 } TextLine;
 
@@ -1340,7 +1340,7 @@ void showHelp()
     printf("CS132 Command Line Text Editor - by Jakub Ucinski\n");
     printf("\n");
     printf("\n");
-    printf("File-level interactions\n");
+    printf("File-level operations\n");
     printf("\n");
     printf("Create File: $ ./q2 [c|C] [file] *(o) : o flag - overwrite a file with name given if such already exists \n");
     printf("Copy File: $ ./q2 [p|P] [source] [destination] *(o) : o flag - overwrite a file with name given for source if such already exists \n");
@@ -1348,7 +1348,7 @@ void showHelp()
     printf("Show File: $ ./q2 [s|S] [file] \n");
     printf("\n");
     printf("\n");
-    printf("Line-level interactions\n");
+    printf("Line-level operations\n");
     printf("\n");
     printf("Show Line: $ ./q2 [q|Q] [file] [line number] *(r) : r flag - show the real, current line with the line number given\n");
     printf("Insert Line: $ ./q2 [i|I] [file] [line number] [text content - MAX 1000 CHARACTERS]\n");
@@ -1366,11 +1366,8 @@ void showHelp()
     printf("\n");
 }
 
-int main(int argc, char *argv[])
+void manualMode(int argc, char *argv[])
 {
-    if (argc <= 1)
-        return 1;
-
     switch (*argv[1])
     {
     // Option selection (depending on the users input)
@@ -1537,6 +1534,418 @@ int main(int argc, char *argv[])
         printf("ERROR || Invalid option selected\n");
         break;
     }
+    exit(0);
+}
+
+void operationPrint()
+{
+    printf("Please select an operation:");
+    printf("\n");
+    printf("\n");
+    printf("File-level operations\n");
+    printf("\n");
+    printf("Create File : C \n");
+    printf("Copy File: P \n");
+    printf("Delete File: D \n");
+    printf("Show File: S \n");
+    printf("\n");
+    printf("\n");
+    printf("Line-level operations\n");
+    printf("\n");
+    printf("Show Line: Q\n");
+    printf("Insert Line: I\n");
+    printf("Delete Line: X\n");
+    printf("Append Line: A\n");
+    printf("\n");
+    printf("\n");
+    printf("Undo: U\n");
+    printf("Redo: R\n");
+    printf("Show Logs: L\n");
+    printf("Show length of file: N\n");
+    printf("Compile ext file: M\n");
+    printf("Generate the EXT and LOG files: B\n");
+    printf("Show help: H\n");
+    printf("\n");
+    printf("Operation: ");
+}
+
+void interactiveMode()
+{
+    char option = '\0';
+    operationPrint();
+
+    scanf("%c", &option);
+
+    char src[21];
+    char dest[21];
+    char *flag;
+    size_t lineNo;
+    char line[1001];
+
+    switch (option)
+    {
+    // Option selection (depending on the users input)
+    case 'c':
+    case 'C':
+    {
+
+        printf("Please provide the name of the file to create [MAX : 20 characters]: ");
+        scanf("%s", src);
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        int c;
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+        printf("(optional) Please provide a flag [o : overwrite] : ");
+        scanf("%c", flag);
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+
+        fileCreateController(src, flag);
+
+        break;
+    }
+
+    case 'p':
+    case 'P':
+    {
+        printf("Please provide the name of the source file [MAX : 20 characters]: ");
+        scanf("%20s", src);
+
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        int c;
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+        printf("Please provide the name of the destination file [MAX : 20 characters]: ");
+        scanf("%20s", dest);
+
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+        printf("(optional) Please provide a flag [o : overwrite] : ");
+        scanf("%c", flag);
+
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+        fileCopyController(src, dest, flag);
+
+        break;
+    }
+
+    case 'd':
+    case 'D':
+    {
+        printf("Please provide the name of the file to remove [MAX : 20 characters]: ");
+        scanf("%20s", src);
+
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        int c;
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+        printf("(optional) Please provide a flag [a : all] : ");
+        scanf("%c", flag);
+
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+        fileDeleteController(src, flag);
+
+        break;
+    }
+
+    case 's':
+    case 'S':
+    {
+        printf("Please provide the name of the file to display [MAX : 20 characters] : ");
+        scanf("%20s", src);
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        int c;
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+        fileShowController(src);
+
+        break;
+    }
+
+    case 'q':
+    case 'Q':
+    {
+        printf("Please provide the name of the file to display the line from [MAX : 20 characters] : ");
+        scanf("%20s", src);
+
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        int c;
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+
+        printf("Please provide the line number to display : ");
+        scanf("%lu", &lineNo);
+
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+
+        printf("(optional) Please provide a flag [r : real] : ");
+        scanf("%c", flag);
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+        lineShowController(src, lineNo, flag);
+
+        break;
+    }
+
+    case 'i':
+    case 'I':
+    {
+        printf("Please provide the name of the file to insert the line to [MAX : 20 characters] : ");
+        scanf("%20s", src);
+
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        int c;
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+
+        printf("Please provide the line number to insert the line to : ");
+        scanf("%lu", &lineNo);
+
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+
+        printf("Please provide the line [MAX : 1000 characters] : ");
+        scanf("%1000s", line);
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+        lineInsertController(src, lineNo, line);
+
+        break;
+    }
+
+    case 'x':
+    case 'X':
+    {
+        printf("Please provide the name of the file to delete the line from [MAX : 20 characters] : ");
+        scanf("%20s", src);
+
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        int c;
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+
+        printf("Please provide the line number to delete : ");
+        scanf("%lu", &lineNo);
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+        lineDeleteController(src, lineNo);
+
+        break;
+    }
+
+    case 'a':
+    case 'A':
+    {
+        printf("Please provide the name of the file to append a line to [MAX : 20 characters] : ");
+        scanf("%20s", src);
+
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        int c;
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+
+        printf("Please provide the line [MAX : 1000 characters] : ");
+        scanf("%1000s", line);
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+        lineAppendController(src, line);
+
+        break;
+    }
+
+    case 'm':
+    case 'M':
+    {
+        printf("Please provide the name of the file to compile the Extended file of [MAX : 20 characters] : ");
+        scanf("%20s", src);
+
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        int c;
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+        compileExt(src);
+
+        break;
+    }
+
+    case 'l':
+    case 'L':
+    {
+        printf("Please provide the name of the file to display the logs of [MAX : 20 characters] : ");
+        scanf("%20s", src);
+
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        int c;
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+        showLogs(src);
+
+        break;
+    }
+
+    case 'n':
+    case 'N':
+    {
+        printf("Please provide the name of the file to show the length of [MAX : 20 characters] : ");
+        scanf("%20s", src);
+
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        int c;
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+
+        printf("(optional) Please provide a flag [r : real] : ");
+        scanf("%c", flag);
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+        showLength(src, flag);
+
+        break;
+    }
+
+    case 'b':
+    case 'B':
+    {
+        printf("Please provide the name of the file to build the Extended file and Log file for [MAX : 20 characters] : ");
+        scanf("%20s", src);
+
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        int c;
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+
+        buildExtLog(src);
+
+        break;
+    }
+
+    case 'u':
+    case 'U':
+    {
+        printf("Please provide the name of the file to undo the last operation from [MAX : 20 characters] : ");
+        scanf("%20s", src);
+
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        int c;
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+
+        undoController(src);
+
+        break;
+    }
+
+    case 'r':
+    case 'R':
+    {
+        printf("Please provide the name of the file to redo the last undone operation [MAX : 20 characters] : ");
+        scanf("%20s", src);
+
+        // line taken from stackoverflow
+        // (https://stackoverflow.com/questions/7898215/how-to-clear-input-buffer-in-c)
+        int c;
+        while ((c = getchar()) != '\n' && c != EOF)
+        {
+        }
+
+        redoController(src);
+
+        break;
+    }
+    case 'h':
+    case 'H':
+    {
+        showHelp();
+        break;
+    }
+    default:
+    {
+        printf("ERROR || Invalid option selected\n");
+        break;
+    }
+    }
+    exit(0);
+}
+
+int main(int argc, char *argv[])
+{
+    // char option = '\0';
+    // char file = '\0';
+    // char file2 = '\0';
+    // char flag = '\0';
+
+    if (argc <= 1)
+    {
+        // operationPrint();
+        // scanf("%c", &option);
+        interactiveMode();
+    }
+    else
+        manualMode(argc, argv);
+
+    // strcpy(&option, argv[1]);
 
     return 0;
 }

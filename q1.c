@@ -1,3 +1,7 @@
+/* 
+ * Command to compile: gcc -o q1 q1.c -lm
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
